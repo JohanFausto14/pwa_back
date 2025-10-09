@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const mongoose = require('mongoose');
 const path = require('path');
+const connectDB = require('./config/database');
 
 // Cargar variables de entorno
 dotenv.config();
@@ -56,30 +56,18 @@ app.use((err, req, res, next) => {
 });
 
 // ----------------------
-// CONEXIÓN A MONGODB
+// CONEXIÓN A MONGODB Y SERVIDOR
 // ----------------------
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/rapper-dashboard';
 const PORT = process.env.PORT || 5000;
 
-mongoose.connect(MONGO_URI, { 
-    useNewUrlParser: true, 
-    useUnifiedTopology: true 
-})
-.then(() => {
-    console.log('🔗 Mongoose conectado a MongoDB');
-    console.log('✅ MongoDB Conectado:', mongoose.connection.host);
-    console.log('📊 Base de datos:', mongoose.connection.name);
+// Conectar a MongoDB usando la configuración centralizada
+connectDB();
 
-    // Solo iniciar servidor si DB conecta
-    app.listen(PORT, () => {
-        console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-        console.log(`📡 API disponible en http://localhost:${PORT}/api`);
-        console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
-    });
-})
-.catch((err) => {
-    console.error('❌ Error al conectar a MongoDB:', err);
-    process.exit(1); // Salir si no hay DB
+// Iniciar servidor
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+    console.log(`📡 API disponible en http://localhost:${PORT}/api`);
+    console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
 });
 
 module.exports = app;
