@@ -5,7 +5,9 @@ const router = express.Router();
 const webPush = require('web-push');
 const PushSubscription = require('../models/PushSubscription');
 
-// Configurar web-push con las claves VAPID
+// ==========================================
+// CONFIGURACIÓN WEB-PUSH
+// ==========================================
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   webPush.setVapidDetails(
     process.env.VAPID_SUBJECT || 'mailto:example@domain.com',
@@ -40,6 +42,7 @@ router.get('/vapid-public-key', (req, res) => {
 router.post('/subscribe', async (req, res) => {
   try {
     const { subscription, userId } = req.body;
+    const origin = req.headers.origin || 'unknown';
 
     if (!subscription || !subscription.endpoint) {
       return res.status(400).json({
@@ -49,8 +52,8 @@ router.post('/subscribe', async (req, res) => {
     }
 
     // Verificar si ya existe la suscripción
-    let pushSub = await PushSubscription.findOne({ 
-      endpoint: subscription.endpoint 
+    let pushSub = await PushSubscription.findOne({
+      endpoint: subscription.endpoint
     });
 
     if (pushSub) {
@@ -58,6 +61,7 @@ router.post('/subscribe', async (req, res) => {
       pushSub.keys = subscription.keys;
       pushSub.userId = userId || pushSub.userId;
       pushSub.userAgent = req.headers['user-agent'] || '';
+      pushSub.origin = origin; // 👈 Actualizamos el origen
       pushSub.active = true;
       pushSub.lastUsed = new Date();
       await pushSub.save();
@@ -75,6 +79,7 @@ router.post('/subscribe', async (req, res) => {
       keys: subscription.keys,
       userId: userId || null,
       userAgent: req.headers['user-agent'] || '',
+      origin, // 👈 Guardamos el origen
       active: true
     });
 
@@ -152,13 +157,22 @@ router.post('/send', async (req, res) => {
       });
     }
 
-    // Obtener todas las suscripciones activas
-    const subscriptions = await PushSubscription.find({ active: true });
+    // Determinar el origen actual según el entorno
+    const currentOrigin =
+      process.env.NODE_ENV === 'production'
+        ? 'https://pwa-front-rho.vercel.app'
+        : 'http://localhost:5173'; // o 3000 si usas CRA
+
+    // Filtrar suscripciones activas del entorno correspondiente
+    const subscriptions = await PushSubscription.find({
+      active: true,
+      origin: currentOrigin
+    });
 
     if (subscriptions.length === 0) {
       return res.json({
         success: true,
-        message: 'No hay suscripciones activas',
+        message: 'No hay suscripciones activas para este entorno',
         sent: 0
       });
     }
@@ -172,49 +186,48 @@ router.post('/send', async (req, res) => {
       tag: tag || 'default-notification'
     });
 
-    // Enviar notificación a todas las suscripciones
+    // Enviar notificaciones
     const results = await Promise.allSettled(
       subscriptions.map(async (sub) => {
         try {
-          await webPush.sendNotification({
-            endpoint: sub.endpoint,
-            keys: {
-              p256dh: sub.keys.p256dh,
-              auth: sub.keys.auth
-            }
-          }, payload);
+          await webPush.sendNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.keys.p256dh,
+                auth: sub.keys.auth
+              }
+            },
+            payload
+          );
 
-          // Actualizar último uso
           await sub.updateLastUsed();
           return { success: true, subscriptionId: sub._id };
-
         } catch (error) {
           console.error(`❌ Error enviando a ${sub._id}:`, error.message);
-          
-          // Si el error es 410 (Gone), desactivar la suscripción
           if (error.statusCode === 410) {
             await sub.deactivate();
             console.log(`🗑️  Suscripción ${sub._id} desactivada (410 Gone)`);
           }
-          
           return { success: false, subscriptionId: sub._id, error: error.message };
         }
       })
     );
 
-    const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const successCount = results.filter(
+      (r) => r.status === 'fulfilled' && r.value.success
+    ).length;
     const failCount = results.length - successCount;
 
     console.log(`📤 Notificaciones enviadas: ${successCount}/${subscriptions.length}`);
 
     res.json({
       success: true,
-      message: `Notificaciones enviadas`,
+      message: 'Notificaciones enviadas',
       total: subscriptions.length,
       sent: successCount,
       failed: failCount
     });
-
   } catch (error) {
     console.error('❌ Error enviando notificaciones:', error);
     res.status(500).json({
@@ -240,10 +253,9 @@ router.post('/send-to-user/:userId', async (req, res) => {
       });
     }
 
-    // Obtener suscripciones del usuario
-    const subscriptions = await PushSubscription.find({ 
-      userId, 
-      active: true 
+    const subscriptions = await PushSubscription.find({
+      userId,
+      active: true
     });
 
     if (subscriptions.length === 0) {
@@ -262,14 +274,13 @@ router.post('/send-to-user/:userId', async (req, res) => {
       tag: tag || 'default-notification'
     });
 
-    // Enviar a todas las suscripciones del usuario
     const results = await Promise.allSettled(
       subscriptions.map(async (sub) => {
         try {
-          await webPush.sendNotification({
-            endpoint: sub.endpoint,
-            keys: sub.keys
-          }, payload);
+          await webPush.sendNotification(
+            { endpoint: sub.endpoint, keys: sub.keys },
+            payload
+          );
           await sub.updateLastUsed();
           return { success: true };
         } catch (error) {
@@ -281,15 +292,16 @@ router.post('/send-to-user/:userId', async (req, res) => {
       })
     );
 
-    const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const successCount = results.filter(
+      (r) => r.status === 'fulfilled' && r.value.success
+    ).length;
 
     res.json({
       success: true,
-      message: `Notificación enviada al usuario`,
+      message: 'Notificación enviada al usuario',
       sent: successCount,
       total: subscriptions.length
     });
-
   } catch (error) {
     console.error('❌ Error enviando notificación al usuario:', error);
     res.status(500).json({
