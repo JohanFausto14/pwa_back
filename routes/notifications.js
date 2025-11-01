@@ -51,17 +51,15 @@ router.post('/subscribe', async (req, res) => {
       });
     }
 
-    // Verificar si ya existe la suscripción
     let pushSub = await PushSubscription.findOne({
       endpoint: subscription.endpoint
     });
 
     if (pushSub) {
-      // Actualizar suscripción existente
       pushSub.keys = subscription.keys;
       pushSub.userId = userId || pushSub.userId;
       pushSub.userAgent = req.headers['user-agent'] || '';
-      pushSub.origin = origin; // 👈 Actualizamos el origen
+      pushSub.origin = origin;
       pushSub.active = true;
       pushSub.lastUsed = new Date();
       await pushSub.save();
@@ -73,18 +71,16 @@ router.post('/subscribe', async (req, res) => {
       });
     }
 
-    // Crear nueva suscripción
     pushSub = new PushSubscription({
       endpoint: subscription.endpoint,
       keys: subscription.keys,
       userId: userId || null,
       userAgent: req.headers['user-agent'] || '',
-      origin, // 👈 Guardamos el origen
+      origin,
       active: true
     });
 
     await pushSub.save();
-
     console.log('📱 Nueva suscripción push registrada:', pushSub._id);
 
     res.status(201).json({
@@ -92,7 +88,6 @@ router.post('/subscribe', async (req, res) => {
       message: 'Suscripción registrada exitosamente',
       subscriptionId: pushSub._id
     });
-
   } catch (error) {
     console.error('❌ Error guardando suscripción:', error);
     res.status(500).json({
@@ -132,7 +127,6 @@ router.post('/unsubscribe', async (req, res) => {
       success: true,
       message: 'Suscripción desactivada'
     });
-
   } catch (error) {
     console.error('❌ Error desactivando suscripción:', error);
     res.status(500).json({
@@ -157,26 +151,22 @@ router.post('/send', async (req, res) => {
       });
     }
 
-    // Determinar el origen actual según el entorno
-    const currentOrigin =
-      process.env.NODE_ENV === 'production'
-        ? 'https://pwa-front-rho.vercel.app'
-        : 'http://localhost:5173'; // o 3000 si usas CRA
+    // 🔍 Determinar el origen actual según entorno
+    const isProduction = process.env.NODE_ENV === 'production';
+    const currentOrigin = isProduction
+      ? 'https://pwa-front-rho.vercel.app'
+      : 'http://localhost:5173';
 
-    // Filtrar suscripciones activas del entorno correspondiente
-   const subscriptions = await PushSubscription.find({
-  active: true,
-  $or: [
-    { origin: currentOrigin },
-    { origin: { $exists: false } } // 👈 permite suscripciones antiguas sin 'origin'
-  ]
-});
-
+    // 🧠 Filtrar solo suscripciones del entorno actual
+    const subscriptions = await PushSubscription.find({
+      active: true,
+      origin: currentOrigin
+    });
 
     if (subscriptions.length === 0) {
       return res.json({
         success: true,
-        message: 'No hay suscripciones activas para este entorno',
+        message: `No hay suscripciones activas para el entorno: ${currentOrigin}`,
         sent: 0
       });
     }
@@ -190,7 +180,7 @@ router.post('/send', async (req, res) => {
       tag: tag || 'default-notification'
     });
 
-    // Enviar notificaciones
+    // 📤 Enviar notificaciones solo a este entorno
     const results = await Promise.allSettled(
       subscriptions.map(async (sub) => {
         try {
@@ -211,7 +201,7 @@ router.post('/send', async (req, res) => {
           console.error(`❌ Error enviando a ${sub._id}:`, error.message);
           if (error.statusCode === 410) {
             await sub.deactivate();
-            console.log(`🗑️  Suscripción ${sub._id} desactivada (410 Gone)`);
+            console.log(`🗑️ Suscripción ${sub._id} desactivada (410 Gone)`);
           }
           return { success: false, subscriptionId: sub._id, error: error.message };
         }
@@ -223,7 +213,9 @@ router.post('/send', async (req, res) => {
     ).length;
     const failCount = results.length - successCount;
 
-    console.log(`📤 Notificaciones enviadas: ${successCount}/${subscriptions.length}`);
+    console.log(
+      `📤 Notificaciones enviadas (${currentOrigin}): ${successCount}/${subscriptions.length}`
+    );
 
     res.json({
       success: true,
@@ -257,15 +249,21 @@ router.post('/send-to-user/:userId', async (req, res) => {
       });
     }
 
+    const isProduction = process.env.NODE_ENV === 'production';
+    const currentOrigin = isProduction
+      ? 'https://pwa-front-rho.vercel.app'
+      : 'http://localhost:5173';
+
     const subscriptions = await PushSubscription.find({
       userId,
-      active: true
+      active: true,
+      origin: currentOrigin
     });
 
     if (subscriptions.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'No hay suscripciones activas para este usuario'
+        message: 'No hay suscripciones activas para este usuario en este entorno'
       });
     }
 
