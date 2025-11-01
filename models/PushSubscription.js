@@ -27,6 +27,10 @@ const pushSubscriptionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  origin: {
+    type: String,
+    default: 'unknown'
+  },
   active: {
     type: Boolean,
     default: true
@@ -43,6 +47,7 @@ const pushSubscriptionSchema = new mongoose.Schema({
 pushSubscriptionSchema.index({ endpoint: 1 });
 pushSubscriptionSchema.index({ userId: 1 });
 pushSubscriptionSchema.index({ active: 1 });
+pushSubscriptionSchema.index({ origin: 1 });
 
 // Método para marcar como inactiva
 pushSubscriptionSchema.methods.deactivate = async function() {

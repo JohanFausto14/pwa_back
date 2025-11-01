@@ -41,8 +41,8 @@ router.get('/vapid-public-key', (req, res) => {
 // ==========================================
 router.post('/subscribe', async (req, res) => {
   try {
-    const { subscription, userId } = req.body;
-    const origin = req.headers.origin || 'unknown';
+    const { subscription, userId, origin } = req.body; // ← Agregar 'origin' aquí
+    const requestOrigin = origin || req.headers.origin || 'unknown';
 
     if (!subscription || !subscription.endpoint) {
       return res.status(400).json({
@@ -71,12 +71,12 @@ router.post('/subscribe', async (req, res) => {
       });
     }
 
-    pushSub = new PushSubscription({
+   pushSub = new PushSubscription({
       endpoint: subscription.endpoint,
       keys: subscription.keys,
       userId: userId || null,
       userAgent: req.headers['user-agent'] || '',
-      origin,
+      origin: requestOrigin, // ← Guardar el origin
       active: true
     });
 
