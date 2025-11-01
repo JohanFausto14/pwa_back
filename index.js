@@ -9,57 +9,78 @@ dotenv.config();
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// ----------------------
+// CONFIGURACIÓN DE CORS DINÁMICA
+// ----------------------
+// Permite múltiples orígenes separados por coma en .env
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',')
+  : [];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Permitir solicitudes sin 'origin' (por ejemplo, Postman o cURL)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn('❌ CORS bloqueado para origen:', origin);
+        callback(new Error('CORS no permitido desde este origen'));
+      }
+    },
+    credentials: true,
+  })
+);
+
+// ----------------------
+// MIDDLEWARES GENERALES
+// ----------------------
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Log de peticiones (útil para desarrollo)
 app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path}`);
-    next();
+  console.log(`${req.method} ${req.path}`);
+  next();
 });
 
 // ----------------------
 // RUTAS
 // ----------------------
 app.use('/api/purchases', require('./routes/purchases'));
-
-// Ruta del carrito para la sincronización offline
 app.use('/api/cart', require('./routes/cart'));
-
-// 🔔 RUTAS DE NOTIFICACIONES PUSH (NUEVO)
 app.use('/api/notifications', require('./routes/notifications'));
 
-// Ruta de prueba
 app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
-        message: 'Rapper Dashboard API funcionando',
-        timestamp: new Date().toISOString(),
-        features: {
-            pushNotifications: true,
-            offlineSync: true
-        }
-    });
+  res.json({
+    status: 'OK',
+    message: 'Rapper Dashboard API funcionando',
+    timestamp: new Date().toISOString(),
+    features: {
+      pushNotifications: true,
+      offlineSync: true,
+    },
+  });
 });
 
 // Manejo de rutas no encontradas
 app.use((req, res) => {
-    res.status(404).json({ 
-        success: false, 
-        message: 'Ruta no encontrada' 
-    });
+  res.status(404).json({
+    success: false,
+    message: 'Ruta no encontrada',
+  });
 });
 
 // Manejo de errores
 app.use((err, req, res, next) => {
-    console.error('Error:', err);
-    res.status(err.status || 500).json({
-        success: false,
-        message: err.message || 'Error interno del servidor',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    });
+  console.error('Error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Error interno del servidor',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
 });
 
 // ----------------------
@@ -67,15 +88,14 @@ app.use((err, req, res, next) => {
 // ----------------------
 const PORT = process.env.PORT || 5000;
 
-// Conectar a MongoDB usando la configuración centralizada
+// Conectar a MongoDB
 connectDB();
 
-// Iniciar servidor
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-    console.log(`📡 API disponible en http://localhost:${PORT}/api`);
-    console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
-    console.log(`🔔 Push Notifications: http://localhost:${PORT}/api/notifications`);
+  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+  console.log(`📡 API disponible en http://localhost:${PORT}/api`);
+  console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🔔 Push Notifications: http://localhost:${PORT}/api/notifications`);
 });
 
 module.exports = app;
