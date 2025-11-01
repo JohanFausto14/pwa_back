@@ -164,10 +164,14 @@ router.post('/send', async (req, res) => {
         : 'http://localhost:5173'; // o 3000 si usas CRA
 
     // Filtrar suscripciones activas del entorno correspondiente
-    const subscriptions = await PushSubscription.find({
-      active: true,
-      origin: currentOrigin
-    });
+   const subscriptions = await PushSubscription.find({
+  active: true,
+  $or: [
+    { origin: currentOrigin },
+    { origin: { $exists: false } } // 👈 permite suscripciones antiguas sin 'origin'
+  ]
+});
+
 
     if (subscriptions.length === 0) {
       return res.json({
