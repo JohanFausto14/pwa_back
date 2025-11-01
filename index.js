@@ -28,12 +28,19 @@ app.use('/api/purchases', require('./routes/purchases'));
 // Ruta del carrito para la sincronización offline
 app.use('/api/cart', require('./routes/cart'));
 
+// 🔔 RUTAS DE NOTIFICACIONES PUSH (NUEVO)
+app.use('/api/notifications', require('./routes/notifications'));
+
 // Ruta de prueba
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         message: 'Rapper Dashboard API funcionando',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        features: {
+            pushNotifications: true,
+            offlineSync: true
+        }
     });
 });
 
@@ -68,6 +75,7 @@ app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
     console.log(`📡 API disponible en http://localhost:${PORT}/api`);
     console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+    console.log(`🔔 Push Notifications: http://localhost:${PORT}/api/notifications`);
 });
 
 module.exports = app;
