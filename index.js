@@ -52,6 +52,10 @@ app.use((req, res, next) => {
 app.use('/api/purchases', require('./routes/purchases'));
 app.use('/api/cart', require('./routes/cart'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/admin', require('./routes/admin'));
+
+
 
 app.get('/api/health', (req, res) => {
   res.json({

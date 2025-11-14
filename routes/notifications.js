@@ -4,6 +4,8 @@ const express = require('express');
 const router = express.Router();
 const webPush = require('web-push');
 const PushSubscription = require('../models/PushSubscription');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
+
 
 // ==========================================
 // CONFIGURACIÓN WEB-PUSH
@@ -237,7 +239,7 @@ router.post('/send', async (req, res) => {
 // ==========================================
 // RUTA: Enviar notificación a un usuario específico
 // ==========================================
-router.post('/send-to-user/:userId', async (req, res) => {
+router.post('/send', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { title, body, icon, badge, data, tag } = req.body;
