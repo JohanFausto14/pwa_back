@@ -9,30 +9,8 @@ dotenv.config();
 
 const app = express();
 
-// ----------------------
-// CONFIGURACIÓN DE CORS DINÁMICA
-// ----------------------
-// Permite múltiples orígenes separados por coma en .env
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',')
-  : [];
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Permitir solicitudes sin 'origin' (por ejemplo, Postman o cURL)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn('❌ CORS bloqueado para origen:', origin);
-        callback(new Error('CORS no permitido desde este origen'));
-      }
-    },
-    credentials: true,
-  })
-);
+// Habilitar CORS para todas las peticiones
+app.use(cors());
 
 // ----------------------
 // MIDDLEWARES GENERALES
